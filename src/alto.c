@@ -30,7 +30,7 @@
 #include <sys/time.h>
 #include <sys/stat.h>
 
-#include "SDL.h"
+#include "SDL/SDL.h"
 
 #include "alto.h"
 #include "cpu.h"

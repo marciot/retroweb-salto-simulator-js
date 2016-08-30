@@ -25,6 +25,10 @@
 #if !defined(_ALTO_H_INCLUDED_)
 #define	_ALTO_H_INCLUDED_
 
+#ifdef EMSCRIPTEN
+#include <stddef.h>
+#endif
+
 /** @brief get the integer type definitions */
 #include "altoint.h"
 

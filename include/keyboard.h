@@ -26,7 +26,7 @@
 #define	_KEYBOARD_H_INCLUDED_
 
 /** @brief need to include SDL.h for the key symbols */
-#include <SDL.h>
+#include <SDL/SDL.h>
 
 
 /** @brief make an Alto key int from address * 16 + bit */

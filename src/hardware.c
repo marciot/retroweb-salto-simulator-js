@@ -23,7 +23,8 @@
  * $Id: hardware.c,v 1.1.1.1 2008/07/22 19:02:07 pm Exp $
  *****************************************************************************/
 #include <stdlib.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
+#include <string.h>
 
 #include "alto.h"
 #include "cpu.h"

@@ -27,7 +27,7 @@
 #include <stdarg.h>
 #include <string.h>
 #include <sys/time.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
 
 #include "alto.h"
 #include "cpu.h"

@@ -26,12 +26,21 @@ TOOLS	=	tools
 DIRS	=	$(BIN) $(OBJ) $(TEMP)
 
 # C-cache, C compiler and flags
+ifeq ($(strip $(EMSCRIPTEN)),0)
 GCC	= $(shell which gcc)
 CFLAGS	+= -Wall -MD
+else
+GCC	= emcc
+CFLAGS	+= -Wall
+endif
 
 # Linker and flags
 LD	= $(GCC)
+ifeq ($(strip $(EMSCRIPTEN)),0)
 LDFLAGS =
+else
+LDFLAGS = -Isrc/zlib
+endif
 
 # Archiver and flags
 AR	= ar
@@ -42,7 +51,11 @@ RANLIB	= ranlib
 # Default libraries
 LIBS	=
 # Default include paths
+ifeq ($(strip $(EMSCRIPTEN)),0)
 INC	= -Iinclude -I$(TEMP)
+else
+INC	= -Iinclude -I$(TEMP) -Isrc/zlib
+endif
 
 # Lex and Yacc (required for the Alto assember aasm)
 LEX	= flex
@@ -57,6 +70,7 @@ MV	= mv
 # Specify the full path to a libz.so, if you know it, or
 # otherwise just comment the following line to build our own
 #
+ifeq ($(strip $(EMSCRIPTEN)),0)
 ifeq ($(wildcard /usr/local/include/zlib.h),/usr/local/include/zlib.h)
 INCZ	=	-I/usr/local/include
 LIBZ	=	-L/usr/local/lib -Wl,-rpath,/usr/local/lib -lz
@@ -79,6 +93,7 @@ endif
 endif
 endif
 endif
+endif
 
 #
 # If LIBZ is left empty, we will build our own in ./zlib
@@ -88,15 +103,21 @@ endif
 # Additional libraries
 LIBS	+=
 # Additional include paths
+ifeq ($(strip $(EMSCRIPTEN)),0)
 INC	+=	$(INCZ)
+endif
 
 # Define this, if your OS and compiler has stdint.h
+ifeq ($(strip $(EMSCRIPTEN)),0)
 ifeq ($(wildcard /usr/include/stdint.h),/usr/include/stdint.h)
 CFLAGS	+= -DHAVE_STDINT_H=1
 endif
+endif
 
 # Define this to draw some nifty icons on the frontend
+ifeq ($(strip $(EMSCRIPTEN)),0)
 CFLAGS	+= -DFRONTEND_ICONS=1
+endif
 
 # Heavy debugging
 #CFLAGS += -DDEBUG_CPU_TIMESLICES=1
@@ -208,9 +229,13 @@ LIBZCFLAGS = -O2 -Wall -fno-strict-aliasing \
 	-Wstrict-prototypes -Wmissing-prototypes
 endif
 
+ifeq ($(strip $(EMSCRIPTEN)),0)
 TARGETS += $(BIN)/ppm2c $(BIN)/convbdf $(BIN)/salto \
 	$(BIN)/aasm $(BIN)/adasm $(BIN)/edasm \
 	$(BIN)/dumpdsk $(BIN)/aar $(BIN)/aldump $(BIN)/helloworld.bin
+else
+TARGETS += $(BIN)/salto
+endif
 
 all:	dirs $(TARGETS)
 
@@ -234,6 +259,7 @@ $(OBJ)/%.o:	tools/%.c
 	$(CC_RUN) $(CFLAGS) -Iinclude -I$(TEMP) -Itools -o $@ -c $<
 
 
+ifeq ($(strip $(EMSCRIPTEN)),0)
 $(TEMP)/pics.c: $(BIN)/ppm2c
 	@echo "==> embedding icons in C source $@ ..."
 	@$(BIN)/ppm2c $(wildcard pics/*.ppm) >$@
@@ -241,6 +267,7 @@ $(TEMP)/pics.c: $(BIN)/ppm2c
 $(BIN)/ppm2c:	$(OBJ)/ppm2c.o
 	$(LD_MSG)
 	$(LD_RUN) $(LDFLAGS) -o $@ $^
+endif
 
 $(OBJ)/%.o:	$(TEMP)/%.c
 	$(CC_MSG)
@@ -310,7 +337,11 @@ else
 endif
 
 clean:
+ifeq ($(strip $(EMSCRIPTEN)),0)
 	rm -rf salto *.core $(TEMP) $(OBJ) $(BIN)
+else
+	rm -rf salto *.core $(OBJ) $(BIN)/salto
+endif
 
 distclean:	clean
 	rm -rf helloworld.bin alto.mng alto*.png alto.dump log *.bck */*.bck

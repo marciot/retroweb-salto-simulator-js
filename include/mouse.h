@@ -79,6 +79,11 @@ extern int mouse_read(void);
 /** @brief register a mouse motion */
 extern void mouse_motion(int x, int y);
 
+#ifdef EMSCRIPTEN
+/** @brief register a mouse motion, relative */
+void mouse_motion_relative(int rel_x, int rel_y);
+#endif
+
 /** @brief register a mouse button change */
 extern void mouse_button(int b);
 

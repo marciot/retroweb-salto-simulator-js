@@ -20,8 +20,9 @@
  * Still in the public domain.
  */
 
-#include <SDL.h>
+#include <SDL/SDL.h>
 #include "md5.h"
+#include <string.h>
 
 #if	SDL_BYTEORDER == SDL_BIG_ENDIAN
 void byte_swap(uint32_t *buf, unsigned words)

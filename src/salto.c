@@ -28,7 +28,16 @@
 #include <string.h>
 #include <sys/time.h>
 #include <sys/stat.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
+
+
+#ifdef EMSCRIPTEN
+#include <emscripten.h>
+#include <html5.h>
+
+void sdl_blitter_init();
+int  sdl_blitter_write_word(int x, int y, uint32_t pixel);
+#endif
 
 #include "alto.h"
 #include "cpu.h"
@@ -46,6 +55,11 @@
 #include "eia.h"
 #include "png.h"
 #include "mng.h"
+
+#ifdef EMSCRIPTEN
+Uint8 SDL_EventState(Uint32 type, int state) {return 0;};
+void salto_run_emscripen_step();
+#endif
 
 #ifndef	GRABKEYS
 /** @brief keys to grab/release mouse input */
@@ -112,6 +126,12 @@ mng_t *mng;
 /** @brief number of bytes written to the MNG */
 size_t xngsize;
 
+#ifdef EMSCRIPTEN
+#define	BORDER_H	0
+#define	BORDER_Y	0
+#define	BORDER_W	0
+#define	BORDER_X	0
+#else
 #if	FRONTEND_ICONS
 #define	BORDER_H	(30+4)
 #define	BORDER_Y	30
@@ -121,6 +141,7 @@ size_t xngsize;
 #endif
 #define	BORDER_W	8
 #define	BORDER_X	(BORDER_W/2)
+#endif // EMSCRIPTEN
 
 static SDL_Surface *screen = NULL;
 static SDL_Surface *alto = NULL;
@@ -146,6 +167,8 @@ static int mousex;
 static int mousey;
 static int mouseb;
 static char *bootimg_name = NULL;
+
+#ifndef EMSCRIPTEN
 static int minx = -1;
 static int miny = -1;
 static int maxx = -1;
@@ -203,6 +226,7 @@ static int sdl_make_cursor(uint8_t *pix, uint8_t *msk, int w, int h, const char 
 	}
 	return 0;
 }
+#endif
 
 /**
  * @brief SDL bit block transfer
@@ -242,6 +266,9 @@ static __inline void sdl_blit(SDL_Surface *ds, SDL_Surface *ss,
  */
 int border_putch(int x, int y, uint8_t ch)
 {
+#ifdef EMSCRIPTEN
+	return 0;
+#else
 	int sx = ch * DBG_FONT_W;
 	int sy = 0;
 	SDL_Rect sr;
@@ -260,6 +287,7 @@ int border_putch(int x, int y, uint8_t ch)
 	SDL_FillRect(screen, &dr, SDL_MapRGB(screen->format,BORDER_RGB));
 	SDL_BlitSurface(charmap, &sr, screen, &dr);
 	return 0;
+#endif
 }
 
 /**
@@ -272,6 +300,9 @@ int border_putch(int x, int y, uint8_t ch)
  */
 int border_printf(int x, int y, const char *fmt, ...)
 {
+#ifdef EMSCRIPTEN
+	return 0;
+#else
 	static char buff[256];
 	int i, len;
 	va_list ap;
@@ -284,6 +315,7 @@ int border_printf(int x, int y, const char *fmt, ...)
 		x += DBG_FONT_W;
 	}
 	return len;
+#endif
 }
 
 /**
@@ -326,6 +358,7 @@ static int sdl_close_display(void)
 }
 
 
+#ifndef EMSCRIPTEN
 /**
  * @brief callback for mng_finish() or png_finish() to emit a byte
  *
@@ -489,6 +522,7 @@ static void screenshot(void)
 
 	fclose(fp);
 }
+#endif
 
 #define	PC_START 0
 static void bootimg(void)
@@ -530,6 +564,9 @@ static void bootimg(void)
  */
 void debug_view(int which)
 {
+#ifdef EMSCRIPTEN
+	return;
+#endif
 	dbg.visible = which;
 	if (dbg.visible) {
 		sdl_blit(screen, debug,
@@ -555,12 +592,15 @@ void debug_view(int which)
  */
 int sdl_update(int full)
 {
+#ifndef EMSCRIPTEN
 	static SDLMod mod_old;
 	SDLMod mod_new;
+#endif
 	SDL_Event ev;
 
 	while (SDL_PollEvent(&ev)) {
 		switch (ev.type) {
+#ifndef EMSCRIPTEN
 		case SDL_VIDEORESIZE:
 			if (NULL != screen)
 				SDL_FreeSurface(screen);
@@ -570,6 +610,7 @@ int sdl_update(int full)
 			SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format,BORDER_RGB));
 			sdl_update(1);
 			break;
+#endif
 
 		case SDL_KEYDOWN:
 			switch (ev.key.keysym.sym) {
@@ -585,6 +626,7 @@ int sdl_update(int full)
 					step = 1;
 				kbd_key(&ev.key.keysym, 1);
 				break;
+#ifndef EMSCRIPTEN
 			case SDLK_PRINT:
 				if (SDL_GetModState() & KMOD_LCTRL) {
 					/* CTRL+PRINT starts/stops MNG recording */
@@ -597,6 +639,7 @@ int sdl_update(int full)
 					screenshot();
 				}
 				break;
+#endif
 			default:
 				if (dbg.visible) {
 					dbg_key(&ev.key.keysym, 1);
@@ -630,6 +673,7 @@ int sdl_update(int full)
 		case SDL_MOUSEMOTION:
 			mousex = ev.motion.x;
 			mousey = ev.motion.y;
+#ifndef EMSCRIPTEN
 			if (mousex < BORDER_X || mousey < BORDER_Y ||
 				mousex >= BORDER_X + DISPLAY_WIDTH ||
 				mousey >= BORDER_Y + DISPLAY_HEIGHT) {
@@ -637,8 +681,20 @@ int sdl_update(int full)
 			} else {
 				SDL_ShowCursor(sdl_cursor ^ 1);
 			}
+#endif
 			if (sdl_cursor) {
+#ifdef EMSCRIPTEN
+				/* If pointer lock is enabled, then use relative mouse motion */
+				EmscriptenPointerlockChangeEvent pointerLockEvent;
+				if(emscripten_get_pointerlock_status(&pointerLockEvent) == EMSCRIPTEN_RESULT_SUCCESS
+				  && pointerLockEvent.isActive) {
+					mouse_motion_relative(ev.motion.xrel, ev.motion.yrel);
+				} else {
+					mouse_motion(mousex - BORDER_X, mousey - BORDER_Y);
+				}
+#else
 				mouse_motion(mousex - BORDER_X, mousey - BORDER_Y);
+#endif
 				if ((mouseb ^ ev.motion.state) & 1) {
 					mouseb = (mouseb & ~1) | (ev.motion.state & 1);
 					mouse_button(mouseb);
@@ -647,6 +703,7 @@ int sdl_update(int full)
 			break;
 
 		case SDL_MOUSEBUTTONDOWN:
+#ifndef EMSCRIPTEN
 			if (mouse.y < BORDER_Y) {
 				/* click on mouse icon ? */
 				if (mouse.x >= MOUSE_ICON_X && mouse.x < MOUSE_ICON_X + 16) {
@@ -665,6 +722,7 @@ int sdl_update(int full)
 						screenmng_start();
 				}
 			}
+#endif
 			if (sdl_cursor) {
 				mouseb |= SDL_BUTTON(ev.button.button);
 				mouse_button(mouseb);
@@ -683,6 +741,7 @@ int sdl_update(int full)
 		}
 	}
 
+#ifndef EMSCRIPTEN
 	/* check for GRABKEYS combination (Ctrl+Alt) */
 	mod_new = SDL_GetModState();
 	if ((mod_new & GRABKEYS) == GRABKEYS) {
@@ -710,6 +769,7 @@ int sdl_update(int full)
 		SDL_UpdateRect(screen, 0, 0, screen->w, screen->h);
 		screenmng_frame();
 	}
+#endif
 
 	return 0;
 }
@@ -743,6 +803,9 @@ int sdl_draw_icon(int x, int y, int type)
  */
 int sdl_write(int x, int y, uint32_t pixel)
 {
+#ifdef EMSCRIPTEN
+	return sdl_blitter_write_word(x, y, pixel);
+#else
 	int sx = (pixel / 256) * 16;
 	int sy = pixel % 256;
 
@@ -764,8 +827,10 @@ int sdl_write(int x, int y, uint32_t pixel)
 			sx, sy, 16, 1);
 	}
 	return 0;
+#endif
 }
 
+#ifndef EMSCRIPTEN
 /**
  * @brief count the bits at and around a bit at a charmap
  *
@@ -810,6 +875,7 @@ static int bitcount(const chargen_t *cg, int i, int x, int y)
 		l      * 3 + c *10 + r      * 3 +
 		bl * c * 2 + b * 3 + br * c * 2;
 }
+#endif
 
 /**
  * @brief render character generator bitmaps for one color
@@ -821,6 +887,9 @@ static int bitcount(const chargen_t *cg, int i, int x, int y)
  */
 int sdl_chargen_alpha(const chargen_t *cg, int col, uint32_t rgb)
 {
+#ifdef EMSCRIPTEN
+	return 0;
+#else
 	SDL_PixelFormat *fmt;
 	SDL_Rect rc;
 	uint32_t ramp[8];
@@ -881,6 +950,7 @@ int sdl_chargen_alpha(const chargen_t *cg, int col, uint32_t rgb)
 	}
 
 	return 0;
+#endif
 }
 
 /**
@@ -893,6 +963,9 @@ int sdl_chargen_alpha(const chargen_t *cg, int col, uint32_t rgb)
  */
 int sdl_debug(int x, int y, int ch, int color)
 {
+#ifdef EMSCRIPTEN
+	return 0;
+#else
 	int sx = ch * DBG_FONT_W;
 	int sy = (color % DBG_COLORS) * DBG_FONT_H;
 	SDL_Rect sr;
@@ -922,6 +995,7 @@ int sdl_debug(int x, int y, int ch, int color)
 		SDL_BlitSurface(debug, &sr, screen, &dr);
 	}
 	return 0;
+#endif
 }
 
 
@@ -930,7 +1004,9 @@ int sdl_debug(int x, int y, int ch, int color)
  */
 static void sdl_exit(void)
 {
+#ifndef EMSCRIPTEN
 	screenmng_stop();
+#endif
 	sdl_close_display();
 	SDL_Quit();
 }
@@ -946,11 +1022,14 @@ static void sdl_exit(void)
  */
 static int sdl_open_display(int width, int height, int depth, const char *title)
 {
+#ifndef EMSCRIPTEN
 	char caption[256];
 	uint8_t buff[256];
 	uint32_t rmask, gmask, bmask, amask;
+#endif
 	uint32_t flags;
 
+#ifndef EMSCRIPTEN
 #if	SDL_BYTEORDER == SDL_BIG_ENDIAN
 	rmask = 0xff000000;
 	gmask = 0x00ff0000;
@@ -964,8 +1043,14 @@ static int sdl_open_display(int width, int height, int depth, const char *title)
 #else
 #error SDL byte order not defined
 #endif
+#endif
 
+
+#ifdef EMSCRIPTEN
+	flags = SDL_HWSURFACE;
+#else
 	flags = SDL_HWSURFACE | SDL_RESIZABLE /* | SDL_FULLSCREEN */;
+#endif
 	screen = SDL_SetVideoMode(width, height, 0, flags);
 	if (NULL == screen) {
 		fatal(1,"SDL_SetVideoMode(%d,%d,%d,0x%x) failed\n",
@@ -975,6 +1060,7 @@ static int sdl_open_display(int width, int height, int depth, const char *title)
 	fprintf(stdout, "SDL_SetVideoMode(%d,%d,%d,0x%x) ok\n",
 			screen->w, screen->h, screen->format->BitsPerPixel, flags);
 
+#ifndef EMSCRIPTEN
 	/* fill rect */
 	SDL_FillRect(screen, NULL, SDL_MapRGB(screen->format,BORDER_RGB));
 	SDL_UpdateRect(screen, 0, 0, width, height);
@@ -1005,6 +1091,7 @@ static int sdl_open_display(int width, int height, int depth, const char *title)
 
 	cursor = SDL_CreateCursor(&buff[0x00], &buff[0x80], 10, 16, 0, 0);
 	SDL_SetCursor(cursor);
+#endif
 
 	return 0;
 }
@@ -1014,7 +1101,9 @@ static int sdl_open_display(int width, int height, int depth, const char *title)
  */
 static int sdl_init(int width, int height, int depth, const char *title)
 {
+#ifndef EMSCRIPTEN
 	int n, x, y;
+#endif
 	SDL_Rect dst;
 	uint32_t rmask, gmask, bmask, amask;
 	uint32_t colors[2];
@@ -1092,6 +1181,7 @@ static int sdl_init(int width, int height, int depth, const char *title)
 	colors[0] = SDL_MapRGB(alto->format,BACKGROUND_RGB);
 	colors[1] = SDL_MapRGB(alto->format,FOREGROUND_RGB);
 
+#ifndef EMSCRIPTEN
 	SDL_SetClipRect(alto, &dst);
 	SDL_FillRect(alto, NULL, SDL_MapRGB(alto->format,BACKGROUND_RGB));
 
@@ -1114,6 +1204,7 @@ static int sdl_init(int width, int height, int depth, const char *title)
 			}
 		}
 	}
+#endif
 
 #if	FRONTEND_ICONS
 	dst.w = 1;
@@ -1280,7 +1371,11 @@ int main(int argc, char **argv)
 	drive_select(0, 0);
 	alto_reset();
 
-#if	DEBUG
+#ifdef EMSCRIPTEN
+	sdl_blitter_init();
+	emscripten_set_main_loop(salto_run_emscripen_step, 0, 1);
+	return 0;
+#elif	DEBUG
 	while (!halted) {
 		ntime_t run, ran;
 		while ((run = timer_next_time()) < CPU_MICROCYCLE_TIME)
@@ -1335,3 +1430,114 @@ int main(int argc, char **argv)
 	}
 	return 0;
 }
+
+/* sdl_blitter: The alto writes to video memory in 16-bit words with each bit corresponding
+ * to a black and white pixel. SDL uses a 32-bit color space. This blitter creates an SDL
+ * surface containing groups of eight colored pixels corresponding to each of the possible
+ * bytes value uses SDL_BlitSurface to stamp out the high and low order halfs of the word.
+ */
+
+#define PIXEL_TABLE_X(val)  ((val & 0x03) << 4)
+#define PIXEL_TABLE_Y(val)  ((val & 0xFC) >> 2)
+
+struct {
+	SDL_Surface *table;
+	SDL_Rect    dstrect;
+	SDL_Rect    srcrect;
+} sdl_blitter;
+
+void sdl_blitter_init() {
+	uint32_t w   = PIXEL_TABLE_X(0xFF) + 16;
+	uint32_t h   = PIXEL_TABLE_Y(0xFF) + 1;
+	size_t   siz = h * w * sizeof(Uint32);
+	Uint32 *buff = malloc(siz);
+	uint32_t val;
+
+	if(buff == NULL) {
+		fatal(1,"sdl_blitter_init: failed to allocate buffer of %ld bytes\n", siz);
+	}
+	for(val = 0; val <= 0xFF; val++) {
+		Uint32 *word = &buff[PIXEL_TABLE_Y(val) * w + PIXEL_TABLE_X(val)];
+		word[0]  = (val & 0x80) ? 0xFF000000 : 0xFFFFFFBB;
+		word[1]  = (val & 0x40) ? 0xFF000000 : 0xFFFFFFBB;
+		word[2]  = (val & 0x20) ? 0xFF000000 : 0xFFFFFFBB;
+		word[3]  = (val & 0x10) ? 0xFF000000 : 0xFFFFFFBB;
+		word[4]  = (val & 0x08) ? 0xFF000000 : 0xFFFFFFBB;
+		word[5]  = (val & 0x04) ? 0xFF000000 : 0xFFFFFFBB;
+		word[6]  = (val & 0x02) ? 0xFF000000 : 0xFFFFFFBB;
+		word[7]  = (val & 0x01) ? 0xFF000000 : 0xFFFFFFBB;
+	}
+
+	sdl_blitter.table = SDL_CreateRGBSurfaceFrom(
+		buff,
+		w,
+		h,
+		32,                          /* depth */
+		w*sizeof(Uint32),            /* pitch */
+		0x000000FF,                  /* rmask */
+		0x0000FF00,                  /* gmask */
+		0x00FF0000,                  /* bmask */
+		0xFF000000                   /* amask */
+	);
+	free(buff);
+
+	sdl_blitter.srcrect.w = 8;
+	sdl_blitter.srcrect.h = 1;
+	sdl_blitter.dstrect.w = 8;
+	sdl_blitter.dstrect.h = 1;
+}
+
+int sdl_blitter_write_word(int x, int y, uint32_t pixel) {
+	uint16_t byte;
+	if(!sdl_blitter.table) return 0;
+
+	/* Blit the high-order byte */
+	byte = (pixel & 0xFF00) >> 8;
+	sdl_blitter.srcrect.x = PIXEL_TABLE_X(byte);
+	sdl_blitter.srcrect.y = PIXEL_TABLE_Y(byte);
+	sdl_blitter.dstrect.x = x;
+	sdl_blitter.dstrect.y = y;
+	SDL_BlitSurface(sdl_blitter.table, &sdl_blitter.srcrect, screen, &sdl_blitter.dstrect);
+
+	/* Blit the low order byte */
+	byte = (pixel & 0x00FF);
+	sdl_blitter.srcrect.x = PIXEL_TABLE_X(byte);
+	sdl_blitter.srcrect.y = PIXEL_TABLE_Y(byte);
+	sdl_blitter.dstrect.x = x + 8;
+	SDL_BlitSurface(sdl_blitter.table, &sdl_blitter.srcrect, screen, &sdl_blitter.dstrect);
+
+	return 0;
+}
+
+#ifdef EMSCRIPTEN
+int vsync_triggered = 0;
+
+void emscripten_vsync() {
+	vsync_triggered = 1;
+}
+
+void salto_run_emscripen_step() {
+	unsigned long nsToRun = 10000000;
+	vsync_triggered = 0;
+	while(!vsync_triggered) {
+		ntime_t run, ran;
+		while ((run = timer_next_time()) < CPU_MICROCYCLE_TIME)
+			timer_fire();
+		if (run <= 0)
+			run = 5000 * CPU_MICROCYCLE_TIME;
+		global_ntime += run;
+		ran = alto_execute(run);
+		global_ntime += ran - run;
+		if(nsToRun > run) {
+			nsToRun -= run;
+		} else {
+			break;
+		}
+		while (paused && !halted) {
+			dbg_dump_regs();
+			sdl_update(0);
+		}
+	}
+	SDL_UpdateRect(screen, 0, 0, screen->w, screen->h);
+}
+#endif

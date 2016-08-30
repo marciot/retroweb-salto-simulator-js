@@ -23,12 +23,19 @@
  * $Id: keyboard.c,v 1.1.1.1 2008/07/22 19:02:07 pm Exp $
  *****************************************************************************/
 #include <stdlib.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
+#include <string.h>
+#include <stdio.h>
 
 #include "alto.h"
 #include "cpu.h"
 #include "memory.h"
 #include "keyboard.h"
+
+#ifdef EMSCRIPTEN
+/* Extra definitions which are omitted from the EMSCRIPTEN version of libSDL */
+#include "SDL_keysym_world.h"
+#endif
 
 static int kbd_matrix[4];
 static int kbd_bootkey;

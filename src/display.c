@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
 
 #include "alto.h"
 #include "cpu.h"
@@ -36,6 +36,10 @@
 
 #ifndef	DEBUG_DISPLAY_TIMING
 #define	DEBUG_DISPLAY_TIMING	0
+#endif
+
+#ifdef EMSCRIPTEN
+void emscripten_vsync();
 #endif
 
 /**
@@ -354,6 +358,9 @@ int display_state_machine(int arg)
 				 */
 				CPU_SET_TASK_WAKEUP(task_dvt);
 				sdl_update(HLC1024);
+#ifdef EMSCRIPTEN
+				emscripten_vsync();
+#endif
 			} else {
 				LOG((log_DSP,1, " VSYNC"));
 			}

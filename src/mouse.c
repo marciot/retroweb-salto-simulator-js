@@ -25,7 +25,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <SDL.h>
+#include <SDL/SDL.h>
 
 #include "alto.h"
 #include "cpu.h"
@@ -248,6 +248,19 @@ void mouse_motion(int x, int y)
 #endif
 #endif
 }
+
+#ifdef EMSCRIPTEN
+/**
+ * @brief register a mouse motion, relative
+ *
+ * @param rel_x change in mouse x coordinate
+ * @param rel_y change in mouse y coordinate
+ */
+void mouse_motion_relative(int rel_x, int rel_y)
+{
+	mouse_motion(mouse.dx + rel_x, mouse.dy + rel_y);
+}
+#endif
 
 /**
  * @brief register mouse button change
