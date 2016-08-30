@@ -30,8 +30,8 @@ source ./emsdk_env.sh
 Use the following commands to clone the emulator code and build the emulators:
 
 ```
-git clone https://github.com/marciot/retroweb-salto.git
-cd retroweb-salto
+git clone https://github.com/marciot/retroweb-salto-simulator-js.git
+cd retroweb-salto-simulator-js
 
 # First build natively (this is so some of the helper tools get built)
 export EMSCRIPTEN=0
@@ -52,5 +52,6 @@ emcc bin/salto.bc $EMCC_OPTS -o salto.js -s EXPORTED_FUNCTIONS='["_main"]'
 sed salto.js -i -e 's/function _SDL_CreateRGBSurfaceFrom/function _SDL_CreateRGBSurfaceFrom_disabled/'
 ```
 
-The "salto.js" file can be used as drop in replacement for the one in in the "emulators/salto-alto" directory of the
+The "salto.js" and "salto.js.mem" files can be used as drop in replacement for the ones in the
+"emulators/salto-alto" directory of the
 [retroweb-vintage-computer-museum](https://github.com/marciot/retroweb-vintage-computer-museum) distribution.
