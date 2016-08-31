@@ -10,9 +10,13 @@ This code is derived from Juergen Buchmueller's [SALTO](https://github.com/brain
 ## How does this code differ from SALTO's distribution?
 
 1. Added headers to enable the code to compile.
-2. Added shims for missing SDL components.
-2. The main loop is modified so that it can be run by Emscripten.
-3. The MAKEFILE has been hacked to work with "emmake" (it probably broke it so it will not compile natively anymore)
+2. Modified MAKEFILE for Emscripten build
+3. Modified main loop to be compatible with EMSCRIPTEN
+4. Replaced the sdl_blit function with my own implementation (the original was crashing in Emscripten)
+5. Added relative mouse motion code to allow the emulator to work when HTML5 pointerlock is enabled
+6. Disabled the GUI icons when compiling to Javascript
+7. Added SDL keysyms which are missing from libSDL in EMSCRIPTEN
+8. Added vsync callback to allow browser refresh to coincide with vsync.
 
 ## Build instructions
 
